@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Fish Farming Gallery</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 20px;
+      background: #f0f8ff;
+    }
+    h1 {
+      text-align: center;
+    }
+    form {
+      margin-bottom: 20px;
+    }
+    input, textarea, button {
+      display: block;
+      margin: 10px 0;
+      padding: 8px;
+    }
+    .media {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+    }
+    .item {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 10px;
+      background: white;
+      max-width: 300px;
+    }
+    .item video, .item img {
+      max-width: 100%;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fish Farming Media Gallery</h1>
+  <form id="mediaForm">
+    <input type="file" id="mediaFile" accept="image/*,video/*" required>
+    <textarea id="description" placeholder="Write about the image or video..." required></textarea>
+    <button type="submit">Upload</button>
+  </form>
+
+  <div class="media" id="mediaContainer"></div>
+
+  <script>
+    let db;
+
+    // Open IndexedDB
+    const request = indexedDB.open("FishFarmDB", 1);
+    request.onupgradeneeded = function(event) {
+      db = event.target.result;
+      const store = db.createObjectStore("media", { keyPath: "id", autoIncrement: true });
+    };
+    request.onsuccess = function(event) {
+      db = event.target.result;
+      loadMedia();
+    };
+
+    // Save media
+    document.getElementById("mediaForm").addEventListener("submit", function(e) {
+      e.preventDefault();
+      const file = document.getElementById("mediaFile").files[0];
+      const description = document.getElementById("description").value;
+
+      const reader = new FileReader();
+      reader.onload = function() {
+        const transaction = db.transaction(["media"], "readwrite");
+        const store = transaction.objectStore("media");
+        store.add({ file: reader.result, type: file.type, description: description });
+        transaction.oncomplete = () => {
+          document.getElementById("mediaForm").reset();
+          loadMedia();
+        };
+      };
+      reader.readAsDataURL(file);
+    });
+
+    // Load media from DB
+    function loadMedia() {
+      const container = document.getElementById("mediaContainer");
+      container.innerHTML = "";
+      const transaction = db.transaction("media", "readonly");
+      const store = transaction.objectStore("media");
+      const request = store.openCursor();
+      request.onsuccess = function(event) {
+        const cursor = event.target.result;
+        if (cursor) {
+          const item = document.createElement("div");
+          item.className = "item";
+          if (cursor.value.type.startsWith("image")) {
+            item.innerHTML = `<img src="${cursor.value.file}"><p>${cursor.value.description}</p>`;
+          } else {
+            item.innerHTML = `<video controls src="${cursor.value.file}"></video><p>${cursor.value.description}</p>`;
+          }
+          container.appendChild(item);
+          cursor.continue();
+        }
+      };
+    }
+  </script>
+</body>
+</html>
